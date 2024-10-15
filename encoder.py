@@ -115,13 +115,15 @@ encoder_model = TransformerEncoder()
 loss_fn = DotProductLoss()
 optimizer = torch.optim.AdamW(encoder_model.parameters(), lr=1e-2)
 
-num_epochs = 50
+num_epochs = 20
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 encoder_model.to(device)
 
 dataset_dir = "data\\training"
-arc_dataset = ARCDataset(dataset_dir, split="train")
-pair_loader = DataLoader(arc_dataset, batch_size=16, shuffle=True)
+train_dataset = ARCDataset(dataset_dir, split="train")
+pair_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+val_dataset = ARCDataset(dataset_dir, split="test")
+val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False)
 
 for epoch in range(num_epochs):
     encoder_model.train()
@@ -146,3 +148,15 @@ for epoch in range(num_epochs):
     
     avg_loss = running_loss / len(pair_loader)
     print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {avg_loss:.4f}')
+
+encoder_model.eval()
+with torch.no_grad():
+    running_loss = 0.0
+    for grid_A, grid_B, num_trans in val_loader:
+        grid_A, grid_B, num_trans = grid_A.to(device), grid_B.to(device), num_trans.float().to(device)
+        embedding_A = encoder_model(grid_A)
+        embedding_B = encoder_model(grid_B)
+        loss = loss_fn(embedding_A, embedding_B, num_trans)
+        running_loss += loss.item()
+    avg_loss = running_loss / len(val_dataset)
+print(f'Validation Loss: {avg_loss:.4f}')
