@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from dataset import ARCDataset
-
+import os
 
 class TransformerEncoder(nn.Module):
     def __init__(self, grid_size=30, patch_size=2, embed_dim=128, num_heads=8, depth=6, ff_dim=128, dropout_prob=0.1):
@@ -119,10 +119,12 @@ num_epochs = 20
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 encoder_model.to(device)
 
-dataset_dir = "data\\training"
-train_dataset = ARCDataset(dataset_dir, split="train")
+dataset_dir = os.path.join("data", "training")
+train_dataset = ARCDataset("data", split="train", include_mutations=True)
+print("Imported training dataset of size: ", len(train_dataset.data))
 pair_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
-val_dataset = ARCDataset(dataset_dir, split="test")
+val_dataset = ARCDataset(dataset_dir, split="test") # TODO: Need to use validation set instead of test set
+print("Imported test dataset of size: ", len(val_dataset.data))
 val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False)
 
 for epoch in range(num_epochs):
