@@ -9,13 +9,13 @@ class ARCDataset(Dataset):
     def __init__(self, dataset_dir, split="train", include_mutations=False):
         self.dataset_dir = dataset_dir
         self.split = split
-        self.task_files = [f for f in os.listdir(dataset_dir) if f.endswith('.json') and f != "mutated_tasks_train_9600.json"]
-        
+        self.task_files = [f for f in os.listdir(dataset_dir) if f.endswith('.json') and f != "mutated_tasks_train_9600.json" and f != "split_keys.json"]
+
         # Load regular tasks
         self.data = self._load_tasks()
         
         # Load mutation tasks if requested
-        if include_mutations and split == "train":
+        if include_mutations and (split == "train" or split == "valid"):
             print("Loading mutation tasks")
             mutation_file = "mutated_tasks_train_9600.json"
             if os.path.exists(os.path.join(dataset_dir, mutation_file)):
@@ -66,13 +66,22 @@ class ARCDataset(Dataset):
         
         with open(os.path.join(self.dataset_dir, mutation_file), 'r') as f:
             mutation_data = json.load(f)
+        with open(os.path.join(self.dataset_dir, "split_keys.json"), 'r') as f:
+            split_keys = json.load(f)
+        val_keys = split_keys["val"]
+        train_keys = split_keys["train"]
         
         total_tasks = 0
         total_valid_tasks = 0
+        cnt_invalid_keys = 0
         # Iterate through each task in the dictionary
         for task_id, task_info in mutation_data.items():
+            if task_info['parent_key'] in val_keys and self.split == "train":
+                continue
+            if task_info['parent_key'] in train_keys and self.split == "valid":
+                continue
             # Get training examples from the task
-            index = "training_examples" if self.split == "train" else "test_examples"
+            index = "training_examples" if (self.split == "train" or self.split == "valid") else "test_examples"
             for example in task_info[index]:
                 total_tasks += 1
                 input_grid = np.array(example['input'])
@@ -98,8 +107,8 @@ class ARCDataset(Dataset):
                 data.append((padded_input, padded_output, line_count))
             # print(f"Finished processing {task_id}")
 
-        print("Total training tasks: ", total_tasks)
-        print("Total valid tasks: ", total_valid_tasks) 
+        print(f"Total training tasks for {self.split}: {total_tasks}")
+        print(f"Total valid tasks for {self.split}: {total_valid_tasks}") 
         return data
 
     def __len__(self):

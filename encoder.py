@@ -1,11 +1,13 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from dataset import ARCDataset
 import os
+import json
 
 class TransformerEncoder(nn.Module):
-    def __init__(self, grid_size=30, patch_size=2, embed_dim=128, num_heads=8, depth=6, ff_dim=128, dropout_prob=0.1):
+    def __init__(self, grid_size=30, patch_size=2, embed_dim=128, num_heads=8, depth=6, ff_dim=128, dropout_prob=0.2):
         super(TransformerEncoder, self).__init__()
         
         # Compute number of patches based on grid size and patch size
@@ -114,18 +116,23 @@ class DotProductLoss(nn.Module):
 encoder_model = TransformerEncoder()
 loss_fn = DotProductLoss()
 optimizer = torch.optim.AdamW(encoder_model.parameters(), lr=1e-2)
+# scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=5, verbose=True)
+dataset_dir = os.path.join("data", "training")
+
+# Split train dataset 
+train_dataset = ARCDataset("data", split="train", include_mutations=True)
+valid_dataset = ARCDataset("data", split="valid", include_mutations=True)
+print("Imported training dataset:", len(train_dataset.data))
+print("Imported valid dataset of size: ", len(valid_dataset.data))
+pair_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+val_loader = DataLoader(valid_dataset, batch_size=16, shuffle=False)
+
+input()
 
 num_epochs = 20
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print("Device: ", device)
 encoder_model.to(device)
-
-dataset_dir = os.path.join("data", "training")
-train_dataset = ARCDataset("data", split="train", include_mutations=True)
-print("Imported training dataset of size: ", len(train_dataset.data))
-pair_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
-val_dataset = ARCDataset(dataset_dir, split="test") # TODO: Need to use validation set instead of test set
-print("Imported test dataset of size: ", len(val_dataset.data))
-val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False)
 
 for epoch in range(num_epochs):
     encoder_model.train()
@@ -162,3 +169,4 @@ with torch.no_grad():
         running_loss += loss.item()
     avg_loss = running_loss / len(val_dataset)
 print(f'Validation Loss: {avg_loss:.4f}')
+torch.save(model.state_dict(), "~/arc/dist_model")
