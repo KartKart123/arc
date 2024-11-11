@@ -162,10 +162,11 @@ print("Device: ", device)
 encoder_model.to(device)
 
 # Load and evaluate saved model
-saved_model = torch.load('./dist_model', map_location=device)
-saved_model.eval()
-val_mse = saved_model.evaluate(val_loader, device)
-print(f"Validation MSE for saved model: {val_mse:.4f}")
+if os.path.exists('./dist_model'):
+    saved_model = torch.load('./dist_model', map_location=device)
+    saved_model.eval()
+    val_mse = saved_model.evaluate(val_loader, device)
+    print(f"Validation MSE for saved model: {val_mse:.4f}")
 
 for epoch in range(num_epochs):
     encoder_model.train()
