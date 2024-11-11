@@ -71,8 +71,7 @@ class ARCDataset(Dataset):
         val_keys = split_keys["val"]
         train_keys = split_keys["train"]
         
-        total_tasks = 0
-        total_valid_tasks = 0
+        total_examples = 0
         cnt_invalid_keys = 0
         # Iterate through each task in the dictionary
         for task_id, task_info in mutation_data.items():
@@ -80,10 +79,10 @@ class ARCDataset(Dataset):
                 continue
             if task_info['parent_key'] in train_keys and self.split == "valid":
                 continue
+            total_examples += 1
             # Get training examples from the task
             index = "training_examples" if (self.split == "train" or self.split == "valid") else "test_examples"
             for example in task_info[index]:
-                total_tasks += 1
                 input_grid = np.array(example['input'])
                 output_grid = np.array(example['output'])
 
@@ -96,7 +95,6 @@ class ARCDataset(Dataset):
                    output_grid.shape[0] > 30 or output_grid.shape[1] > 30:
                     continue
 
-                total_valid_tasks += 1
                 # Count actual lines of code using same logic as count_function_lines
                 line_count = self._count_program_lines(task_info['program'])
                 
@@ -107,8 +105,7 @@ class ARCDataset(Dataset):
                 data.append((padded_input, padded_output, line_count))
             # print(f"Finished processing {task_id}")
 
-        print(f"Total training tasks for {self.split}: {total_tasks}")
-        print(f"Total valid tasks for {self.split}: {total_valid_tasks}") 
+        print(f"Total training examples for {self.split}: {total_examples}")
         return data
 
     def __len__(self):
