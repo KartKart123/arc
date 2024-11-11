@@ -1,8 +1,11 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from dataset import ARCDataset
-
+import os
+import json
+from sklearn.metrics import mean_squared_error
 
 class TransformerEncoder(nn.Module):
     def __init__(self, grid_size=30, patch_size=2, embed_dim=128, num_heads=8, depth=6, ff_dim=128, dropout_prob=0.1):
@@ -70,6 +73,31 @@ class TransformerEncoder(nn.Module):
         
         return x
 
+    def evaluate(self, val_loader, device):
+        """
+        Evaluate the model on validation data using MSE loss
+        """
+        # self.eval()  # Set model to evaluation mode
+        total_mse = 0
+        num_batches = 0
+        
+        loss_fn = DotProductLoss()
+        with torch.no_grad():
+            for grid_A, grid_B, num_transformations in val_loader:
+                # inputs, targets = batch
+                grid_A = grid_A.to(device)
+                grid_B = grid_B.to(device)
+                num_transformations = num_transformations.float().to(device)
+                
+                embedding_A = self.forward(grid_A)  # Using self instead of model since we're in the class
+                embedding_B = self.forward(grid_B)
+                # loss = loss_fn(outputs, results, targets)
+                loss = loss_fn(embedding_A, embedding_B, num_transformations)
+                total_mse += loss.item()
+        
+        avg_mse = total_mse / len(val_loader)
+        return avg_mse
+
 class TransformerEncoderLayer(nn.Module):
     def __init__(self, embed_dim, num_heads, ff_dim, dropout_prob):
         super(TransformerEncoderLayer, self).__init__()
@@ -114,16 +142,39 @@ class DotProductLoss(nn.Module):
 encoder_model = TransformerEncoder()
 loss_fn = DotProductLoss()
 optimizer = torch.optim.AdamW(encoder_model.parameters(), lr=1e-2)
+# scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=5, verbose=True)
+dataset_dir = os.path.join("data", "training")
+
+# Split train dataset 
+train_dataset = ARCDataset("data", split="train", include_mutations=True)
+valid_dataset = ARCDataset("data", split="valid", include_mutations=True)
+train_ds = ARCDataset("data/training", split="train", include_mutations=False)
+"""
+print(train_ds.data[0])
+input()
+print(train_ds.data[0][0].shape)
+print(train_dataset.data[0][0].shape)
+print(valid_dataset.data[0][0].shape)
+input()
+"""
+print("Imported training dataset:", len(train_dataset.data))
+print("Imported valid dataset of size: ", len(valid_dataset.data))
+input()
+pair_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+val_loader = DataLoader(valid_dataset, batch_size=16, shuffle=True)
+train_loader = DataLoader(train_ds, batch_size=16, shuffle=True)
 
 num_epochs = 20
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print("Device: ", device)
 encoder_model.to(device)
 
-dataset_dir = "data\\training"
-train_dataset = ARCDataset(dataset_dir, split="train")
-pair_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
-val_dataset = ARCDataset(dataset_dir, split="test")
-val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False)
+# Load and evaluate saved model
+if os.path.exists('./dist_model'):
+    saved_model = torch.load('./dist_model', map_location=device)
+    val_mse = saved_model.evaluate(val_loader, device)
+    # val_mse = saved_model.evaluate(train_loader, device)
+    print(f"Validation MSE for saved model: {val_mse:.4f}")
 
 for epoch in range(num_epochs):
     encoder_model.train()
@@ -131,10 +182,19 @@ for epoch in range(num_epochs):
     
     for grid_A, grid_B, num_trans in pair_loader:
         grid_A, grid_B, num_trans = grid_A.to(device), grid_B.to(device), num_trans.float().to(device)
+        """
+        print(grid_A.shape)
+        print(grid_B.shape)
+        print(num_trans.shape)
+        input()
+        """
         
         # Forward pass through Transformer Encoder
         embedding_A = encoder_model(grid_A)
         embedding_B = encoder_model(grid_B)
+        # print(embedding_A)
+        # kprint(embedding_B)
+       #  input()
 
         # Compute loss
         loss = loss_fn(embedding_A, embedding_B, num_trans)
@@ -149,14 +209,8 @@ for epoch in range(num_epochs):
     avg_loss = running_loss / len(pair_loader)
     print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {avg_loss:.4f}')
 
-encoder_model.eval()
-with torch.no_grad():
-    running_loss = 0.0
-    for grid_A, grid_B, num_trans in val_loader:
-        grid_A, grid_B, num_trans = grid_A.to(device), grid_B.to(device), num_trans.float().to(device)
-        embedding_A = encoder_model(grid_A)
-        embedding_B = encoder_model(grid_B)
-        loss = loss_fn(embedding_A, embedding_B, num_trans)
-        running_loss += loss.item()
-    avg_loss = running_loss / len(val_dataset)
-print(f'Validation Loss: {avg_loss:.4f}')
+torch.save(encoder_model, "./dist_model")
+
+val_mse = encoder_model.evaluate(val_loader, device)
+print(f"Validation MSE: {val_mse:.4f}")
+
