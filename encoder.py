@@ -82,8 +82,8 @@ class TransformerEncoder(nn.Module):
         num_batches = 0
         
         with torch.no_grad():
-            for batch in val_loader:
-                inputs, targets = batch
+            for inputs, results, targets in val_loader:
+                # targets = number of transformations
                 inputs = inputs.to(device)
                 targets = targets.to(device)
                 
@@ -167,6 +167,15 @@ if os.path.exists('./dist_model'):
     saved_model.eval()
     val_mse = saved_model.evaluate(val_loader, device)
     print(f"Validation MSE for saved model: {val_mse:.4f}")
+
+# for inputs, results, targets in val_loader:
+#     print(inputs)
+#     print(len(inputs))
+#     print(results)
+#     print(len(results))
+#     print(targets)
+#     print(len(targets))
+#     break
 
 for epoch in range(num_epochs):
     encoder_model.train()
