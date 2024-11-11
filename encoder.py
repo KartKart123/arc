@@ -192,7 +192,7 @@ for epoch in range(num_epochs):
     avg_loss = running_loss / len(pair_loader)
     print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {avg_loss:.4f}')
 
+torch.save(encoder_model, "./dist_model")
+
 val_mse = encoder_model.evaluate(val_loader, device)
 print(f"Validation MSE: {val_mse:.4f}")
-
-torch.save(encoder_model, "./dist_model")
