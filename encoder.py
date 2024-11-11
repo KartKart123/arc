@@ -84,16 +84,19 @@ class TransformerEncoder(nn.Module):
         with torch.no_grad():
             for inputs, results, targets in val_loader:
                 # targets = number of transformations
-                inputs = inputs.to(device)
-                targets = targets.to(device)
+                inputs = inputs.to(device) # input grid
+                results = results.to(device) # output grid
+                targets = targets.to(device) # number of transformations
                 
                 outputs = self(inputs)  # Using self instead of model since we're in the class
+                results = self(results)
+                dot_product = 1 / torch.sum(results * outputs, dim=1)
                 
                 # Convert to numpy for MSE calculation
-                outputs_np = outputs.cpu().numpy()
+                dist_np = dot_product.cpu().numpy()
                 targets_np = targets.cpu().numpy()
                 
-                mse = mean_squared_error(targets_np.flatten(), outputs_np.flatten())
+                mse = mean_squared_error(targets_np.flatten(), dist_np.flatten())
                 total_mse += mse
                 num_batches += 1
         
@@ -155,7 +158,6 @@ print("Imported valid dataset of size: ", len(valid_dataset.data))
 pair_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
 val_loader = DataLoader(valid_dataset, batch_size=16, shuffle=False)
 
-input()
 num_epochs = 20
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print("Device: ", device)
